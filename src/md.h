@@ -1,4 +1,4 @@
-#include "types.h"
+#include "particle.h"
 
 
-void calculateForce(std::vector<Particle> particles);
+void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::vector<double>>, double potEng);

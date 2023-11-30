@@ -16,7 +16,7 @@ public:
 
     std::vector<double>& getPosition();
 
-    std::vector<double>& getVelosity();
+    std::vector<double>& getVelocity();
 
     void updatePosition();
     
