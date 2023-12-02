@@ -115,5 +115,4 @@ GPUs, which CUDA utilizes, are designed for parallel processing and consist of t
 | 12/4 - 12/10 | Implement CUDA version of the code |
 | 12/10 - 12/14 | Optimize the code, and extra functionalities if we still have time (e,g, radial distribution function), finish the final report |
 
-
-
+[Project Milestone Report](Milestone.md)
