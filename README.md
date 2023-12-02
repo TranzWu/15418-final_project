@@ -110,10 +110,10 @@ GPUs, which CUDA utilizes, are designed for parallel processing and consist of t
 | Time | Task| 
 | -------- | -------- | 
 | 11/13 - 11/19 | Implement velocity verlet algorithm (including velocity functions, position function and force function)| 
-| 11/13 - 11/26 | Implement the entire sequential version of the MD code | 
-| 11/27 - 12/3 | Implement CUDA version of the code |
-| 12/4 - 12/10 | Optimize the code |
-| 12/10 - 12/14 | Optimize extra functionalities (e,g, radial distribution function), finish the final report |
+| 11/13 - 11/26 | Implement the entire sequential version for single lj particles| 
+| 11/27 - 12/3 | Implement the entire sequential version for single water molecules (include bonds and angles) |
+| 12/4 - 12/10 | Implement CUDA version of the code |
+| 12/10 - 12/14 | Optimize the code, and extra functionalities if we still have time (e,g, radial distribution function), finish the final report |
 
 
 
