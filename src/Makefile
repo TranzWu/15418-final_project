@@ -5,7 +5,7 @@ CXX := g++
 CXXFLAGS := -std=c++11
 
 # Source files and object files
-SRCS := particle.cpp main.cpp md.cpp
+SRCS := particle.cpp md.cpp main.cpp
 OBJS := $(SRCS:.cpp=.o)
 
 # Target executable

@@ -1,5 +1,10 @@
+//particle.h
+#ifndef PARTICLE_H
+#define PARTICLE_H
+
 #include <iostream>
 #include <vector>
+
 
 
 //define particle type
@@ -30,3 +35,12 @@ public:
 //     std::vector<double> velocity;
 
 };
+
+
+
+
+
+
+
+
+#endif // PARTICLE_H

@@ -1,3 +1,4 @@
+//particle.cpp
 #include "particle.h"
 
 Particle::Particle(int id, std::vector<double>& pos, std::vector<double>& vel):particleID(id), position(pos), velocity(vel) {
