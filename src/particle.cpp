@@ -1,7 +1,8 @@
 //particle.cpp
 #include "particle.h"
 
-Particle::Particle(int id, std::vector<double>& pos, std::vector<double>& vel):particleID(id), position(pos), velocity(vel) {
+
+Particle::Particle(int id, char ele, std::vector<double>& pos, std::vector<double>& vel):particleID(id), element(ele), position(pos), velocity(vel) {
     
 }
 

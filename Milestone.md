@@ -28,6 +28,6 @@ The general issues that are facing is that for MD code, sometimes the code can b
 ## preliminary results 
 
 <div align="center">
-  <img src="media/lj.gif" style="width:4500px;"><br><br>
+  <img src="media/lj_particles.gif" style="width:4500px;"><br><br>
 </div>
 

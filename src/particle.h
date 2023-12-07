@@ -11,9 +11,10 @@
 
 class Particle {
 public:
-    Particle(int id, std::vector<double> &position, std::vector<double> &velocity);
+    Particle(int id, char ele, std::vector<double> &position, std::vector<double> &velocity);
 
     int particleID;
+    char element;
     std::vector<double> position;
     std::vector<double> velocity;    
     
