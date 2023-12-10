@@ -27,8 +27,8 @@ int main(){
     std::vector<Particle> particles;
 
     //initialize particle positions
-    
-    
+
+
     int row = std::cbrt(n);
     int count = 0;
     for (int m = 0; m < row; m++){
@@ -42,7 +42,7 @@ int main(){
                 std::vector<double> v_o = {0, 0, 0};
                 auto a1 = Particle((m * row + l * row + q) * 3, 'O', p_o, v_o);
                 particles.push_back(a1);
-                
+
 
 
                 std::vector<double> p_h1(3);  //create the first hydrogen atom
@@ -54,7 +54,7 @@ int main(){
                 std::vector<double> v_h1 = {0, 0, 0};
                 auto a2 = Particle((m * row + l * row + q) * 3 + 1, 'H', p_h1, v_h1);
                 particles.push_back(a2);
-                
+
 
 
                 std::vector<double> p_h2(3);  //create the second hydrogen atom
@@ -65,8 +65,8 @@ int main(){
                 std::vector<double> v_h2 = {0, 0, 0};
                 auto a3 = Particle((m * row + l * row + q) * 3 + 2, 'H', p_h2, v_h2);
                 particles.push_back(a3);
-                
-                
+
+
 
             }
         }
