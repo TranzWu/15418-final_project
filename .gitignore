@@ -1,3 +1,4 @@
 *.o
 src/output.xyz
 src/water
+settings.json
