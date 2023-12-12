@@ -1,6 +1,7 @@
 //main.cpp
 #include "particle.h"
 #include "md.h"
+#include "md_cuda.h"
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -23,37 +24,9 @@ double u_cut = 4 * (1/std::pow(r_cut, 12) - 1/std::pow(r_cut, 6));
 //dudr = -(48/r_cut**13 - 24/r_cut**7)
 double dudr = -(48/std::pow(r_cut, 13) - 24/std::pow(r_cut, 7));
 
-
-void usage(const char* progname) {
-    printf("Usage: %s [options]\n", progname);
-    printf("Program Options:\n");
-    printf("  -b  --backend <INT>    Select backend (0 : Sequential, 1 : CUDA) \n");
-    printf("  -?  --help             This message\n");
-}
-
-int main(int argc, char** argv){
-
-    int opt;
-    static struct option long_options[] = {
-        {"backend", required_argument, NULL, 'b'},
-        {NULL, 0, NULL, 0}
-    };
-
-    while ((opt = getopt_long(argc, argv, "?b:", long_options, NULL)) != EOF) {
-
-        switch (opt) {
-        case 'b':
-            backend = atoi(optarg);
-            break;
-        case '?':
-        default:
-            printf("opt = %c\n", opt);
-            usage(argv[0]);
-            return 1;
-        }
-    }
-
-    //add particles to a vector
+int sequential_main()
+{
+//add particles to a vector
     std::vector<Particle> particles;
 
     //initialize particle positions
@@ -153,4 +126,150 @@ int main(int argc, char** argv){
     outputFile.close();
 
     return 0;
+}
+
+int cuda_main(size_t dim)
+{
+    // Initialize positions and velocities
+    float positions[dim * dim * dim * 3 * 3]; // TODO: Replace 3's with CONSTANTS
+    float velocities[dim * dim * dim * 3 * 3];
+
+    for (int m = 0; m < dim; m++){
+        for (int l = 0; l < dim; l++){
+            for (int q = 0; q < dim; q++){
+                // Oxygen atom
+                float *pos = &positions[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3];
+                pos[0] = m * 2;
+                pos[1] = l * 2;
+                pos[2] = q * 2;
+                float *vel = &velocities[m * dim * dim * 3 + l * dim * 3 + q * 3];
+                vel[0] = 0;
+                vel[1] = 0;
+                vel[2] = 0;
+
+                // First hydrogen atom
+                pos = &positions[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 3];
+                pos[0] = m * 2 + 0.5;
+                pos[1] = l * 2;
+                pos[2] = q * 2;
+                vel = &velocities[m * dim * dim * 3 + l * dim * 3 + q * 3 + 3];
+                vel[0] = 0;
+                vel[1] = 0;
+                vel[2] = 0;
+
+                // Second hydrogen atom
+                pos = &positions[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 6];
+                pos[0] = m * 2;
+                pos[1] = l * 2 + 0.5;
+                pos[2] = q * 2;
+                vel = &velocities[m * dim * dim * 3 + l * dim * 3 + q * 3 + 6];
+                vel[0] = 0;
+                vel[1] = 0;
+                vel[2] = 0;
+            }
+        }
+    }
+
+
+    //Open a file for writing
+    std::ofstream outputFile("cuda_output.xyz");
+    // Check if the file is open
+    if (!outputFile.is_open()) {
+        std::cerr << "Error opening the file!" << std::endl;
+        return 1; // Return an error code
+    }
+
+    size_t numParticles = dim * dim * dim * 3;
+    //write the initial position to file
+    outputFile << N << "\n\n";
+    for (size_t i = 0; i < numParticles; i++)
+    {
+        // TODO: p.element
+        outputFile << "p.element " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
+                   << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2]  << std::endl;
+    }
+
+    // Initialize CUDA
+    initializeCuda(numParticles, L, dudr, r_cut, u_cut, delta, positions);
+
+    // for each step, output text to the file
+    for (int t = 0; t < totalSteps; t++){
+        // do velocity verlet
+        updateVelocityCuda();
+        updatePositionCuda();
+        calculateForceAndEnergyCuda();
+        updateVelocityCuda();
+        calculateKineticCuda();
+
+        double kinetic, potential;
+        getKinetic(&kinetic);
+        getPotential(&potential);
+        getPositions(positions);
+
+        std::cout << kinetic << " " << potential << " " << kinetic + potential << std::endl;
+        //std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
+
+        //write particle positions to the output files
+        if (t % 20 == 0){
+            outputFile << N << "\n\n";
+
+            for (size_t i = 0; i < numParticles; i++)
+            {
+                // TODO: p.element
+                outputFile << "p.element " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
+                        << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2]  << std::endl;
+            }
+        }
+
+
+    }
+    // Close the file
+    outputFile.close();
+
+    return 0;
+}
+
+void usage(const char* progname) {
+    printf("Usage: %s [options]\n", progname);
+    printf("Program Options:\n");
+    printf("  -b  --backend <INT>    Select backend (0 : Sequential, 1 : CUDA) \n");
+    printf("  -?  --help             This message\n");
+}
+
+int main(int argc, char** argv){
+
+    int opt;
+    static struct option long_options[] = {
+        {"backend", required_argument, NULL, 'b'},
+        {NULL, 0, NULL, 0}
+    };
+
+    while ((opt = getopt_long(argc, argv, "?b:", long_options, NULL)) != EOF) {
+
+        switch (opt) {
+        case 'b':
+            backend = atoi(optarg);
+            break;
+        case '?':
+        default:
+            usage(argv[0]);
+            return 1;
+        }
+    }
+
+    if (backend == 0)
+    {
+        return sequential_main();
+    }
+    else if (backend == 1)
+    {
+        return cuda_main(10); // TODO: what is dim?
+    }
+    else
+    {
+        printf("ERROR Unimplemented\n");
+        return 1;
+    }
+
+    return 1;
 }

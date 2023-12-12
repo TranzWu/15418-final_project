@@ -67,7 +67,7 @@ void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::
                         double r = particles[i].position[k] - particles[j].position[k];
                         if (r < -L/2) r += L;
                         if (r > L/2) r -= L;
-                        
+
                         double f = r * (48/std::pow(dist, 14) - 24/std::pow(dist, 8) + dudr/dist);
                         //std::cout << "f is " << f << std::endl;
                         force[i][k] += f;
