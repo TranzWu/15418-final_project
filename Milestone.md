@@ -43,4 +43,4 @@ We are currently getting a negative speedup with our CUDA backend. We believe th
 
 ## Planned Experiments
 
-We plan to analyze the speedup of our backend on small and large numbers of particles. Time permitting, we plan to compare the speedup of the CUDA backend against the speedup of the ISPC backend on the different particle counts. 
+We plan to analyze the speedup of our backend on small and large numbers of particles on the GHC cluster machines. Time permitting, we plan to compare the speedup of the CUDA backend against the speedup of the ISPC backend on the different particle counts.
