@@ -5,6 +5,10 @@
 #include <fstream>
 #include <cmath>
 #include <utility>
+#include <getopt.h>
+
+// 0 for sequential, 1 for CUDA, 2 for ISPC
+int backend = 0;
 
 double L = 12;
 int n = 5 * 5 * 5;
@@ -20,8 +24,34 @@ double u_cut = 4 * (1/std::pow(r_cut, 12) - 1/std::pow(r_cut, 6));
 double dudr = -(48/std::pow(r_cut, 13) - 24/std::pow(r_cut, 7));
 
 
+void usage(const char* progname) {
+    printf("Usage: %s [options]\n", progname);
+    printf("Program Options:\n");
+    printf("  -b  --backend <INT>    Select backend (0 : Sequential, 1 : CUDA) \n");
+    printf("  -?  --help             This message\n");
+}
 
-int main(){
+int main(int argc, char** argv){
+
+    int opt;
+    static struct option long_options[] = {
+        {"backend", required_argument, NULL, 'b'},
+        {NULL, 0, NULL, 0}
+    };
+
+    while ((opt = getopt_long(argc, argv, "?b:", long_options, NULL)) != EOF) {
+
+        switch (opt) {
+        case 'b':
+            backend = atoi(optarg);
+            break;
+        case '?':
+        default:
+            printf("opt = %c\n", opt);
+            usage(argv[0]);
+            return 1;
+        }
+    }
 
     //add particles to a vector
     std::vector<Particle> particles;
