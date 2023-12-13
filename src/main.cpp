@@ -5,12 +5,16 @@
 #include <fstream>
 #include <cmath>
 #include <utility>
+#include <chrono>
+
+// #include <omp.h>
+
 
 double L = 12;
 int n = 5 * 5 * 5;
 int N = n * 3;
 double delta = 0.002;
-double t = 100;
+double t = 0.2;
 int totalSteps = t / delta;
 
 //define cutoff radius to save computational time
@@ -22,6 +26,8 @@ double dudr = -(48/std::pow(r_cut, 13) - 24/std::pow(r_cut, 7));
 
 
 int main(){
+
+
 
     //add particles to a vector
     std::vector<Particle> particles;
@@ -96,6 +102,7 @@ int main(){
 
 
     // for each step, output text to the file
+    auto start_time = std::chrono::high_resolution_clock::now();
     for (int t = 0; t < totalSteps; t++){
         // do velocity verlet
         updateVelocity(particles, force);
@@ -104,7 +111,7 @@ int main(){
         updateVelocity(particles, force);
         calculateKenetic(particles, kinEng);
 
-        std::cout << kinEng << " " << potEng << " " << kinEng + potEng << std::endl;
+        //std::cout << kinEng << " " << potEng << " " << kinEng + potEng << std::endl;
         //std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
 
         //write particle positions to the output files
@@ -119,6 +126,11 @@ int main(){
 
 
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "Time taken: " << duration.count() << " seconds" << std::endl;
+
+
     // Close the file
     outputFile.close();
 

@@ -2,6 +2,7 @@
 #include "md.h"
 #include <cmath>
 
+
 extern int n, N;
 extern double delta, L, r_cut, u_cut, dudr;
 
@@ -31,7 +32,9 @@ void initializeForce(std::vector<std::vector<double>> &force){
 void updateBondAndAngle(std::vector<Particle> &particles, std::vector<std::vector<double>> &force, double &potEng){
     double spring = 1000;
     double x0 = 0.8;
+    #pragma omp parallel for
     for (int i = 0; i < N; i += 3){
+        //#pragma omp parallel for
         for (int h = 1; h < 3; h++){
             double dist = calculateDistance(particles[i], particles[i+h]);
             for (int k = 0; k < 3; k++){
@@ -53,7 +56,7 @@ void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::
 
     potEng = 0;
     initializeForce(force);
-
+    #pragma omp parallel for
     for (int i = 0; i < N; i++){
         for (int j = i + 1; j < N; j++){
             if ( !((i % 3 == 0) && (j - i == 1) || (i % 3 == 0) && (j - i == 2) )){
@@ -86,6 +89,7 @@ void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::
 
 
 void updateVelocity(std::vector<Particle> &particles, std::vector<std::vector<double>> &force){
+    #pragma omp parallel for
     for (int i = 0; i < N; i++){
         for (int k = 0; k < 3; k++){
             double a = force[i][k] * delta / 2;
@@ -95,6 +99,7 @@ void updateVelocity(std::vector<Particle> &particles, std::vector<std::vector<do
 }
 
 void updatePosition(std::vector<Particle> &particles){
+    #pragma omp parallel for
     for (int i = 0; i < N; i++){
         for (int k = 0; k < 3; k++){
             particles[i].position[k] += particles[i].velocity[k] * delta;
