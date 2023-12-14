@@ -2,11 +2,13 @@
 #include "particle.h"
 #include "md.h"
 #include "md_cuda.h"
+
 #include <iostream>
 #include <fstream>
 #include <cmath>
 #include <utility>
 #include <getopt.h>
+#include <cstring>
 
 // 0 for sequential, 1 for CUDA, 2 for ISPC
 int backend = 0;
@@ -126,10 +128,9 @@ int sequential_main()
 int cuda_main(size_t dim)
 {
     // Initialize positions and velocities
-    float positions[dim * dim * dim * 3 * 3]; // TODO: Replace 3's with CONSTANTS
+    float positions[dim * dim * dim * 3 * 3];
     float velocities[dim * dim * dim * 3 * 3];
-    float forces[dim * dim * dim * 3 * 3];
-
+    memset(velocities, 0, dim * dim * dim * 3 * sizeof(float));
     for (int m = 0; m < dim; m++){
         for (int l = 0; l < dim; l++){
             for (int q = 0; q < dim; q++){
@@ -138,45 +139,31 @@ int cuda_main(size_t dim)
                 pos[0] = m * 2;
                 pos[1] = l * 2;
                 pos[2] = q * 2;
-                float *vel = &velocities[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3];
-                vel[0] = 0;
-                vel[1] = 0;
-                vel[2] = 0;
 
                 // First hydrogen atom
                 pos = &positions[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 3];
                 pos[0] = m * 2 + 0.5;
                 pos[1] = l * 2;
                 pos[2] = q * 2;
-                vel = &velocities[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 3];
-                vel[0] = 0;
-                vel[1] = 0;
-                vel[2] = 0;
 
                 // Second hydrogen atom
                 pos = &positions[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 6];
                 pos[0] = m * 2;
                 pos[1] = l * 2 + 0.5;
                 pos[2] = q * 2;
-                vel = &velocities[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 6];
-                vel[0] = 0;
-                vel[1] = 0;
-                vel[2] = 0;
             }
         }
     }
 
-
-    //Open a file for writing
+    // Open output file
     std::ofstream outputFile("cuda_output.xyz");
-    // Check if the file is open
     if (!outputFile.is_open()) {
         std::cerr << "Error opening the file!" << std::endl;
-        return 1; // Return an error code
+        return 1;
     }
 
+    // Write initial positions out to file
     size_t numParticles = dim * dim * dim * 3;
-    //write the initial position to file
     outputFile << N << "\n\n";
     for (size_t i = 0; i < numParticles; i++)
     {
@@ -185,17 +172,15 @@ int cuda_main(size_t dim)
             element = 'O';
         else
             element = 'H';
-        // TODO: p.element
         outputFile << element << " " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
                    << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] << std::endl;
     }
 
-    // Initialize CUDA
+    // Initialize CUDA simulator
     CudaSim* sim = new CudaSim(numParticles, L, dudr, r_cut, u_cut, delta, positions);
 
-    // for each step, output text to the file
+    // Begin simulation
     for (int t = 0; t < totalSteps; t++){
-        // do velocity verlet
         sim->advance();
 
         float kinetic, potential;
@@ -203,30 +188,25 @@ int cuda_main(size_t dim)
         sim->getPotential(&potential);
 
         std::cout << kinetic << " " << potential << " " << kinetic + potential << std::endl;
-        // std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
 
-        //write particle positions to the output files
+        // Write new positions and velocities to output file
         if (t % 20 == 0){
             sim->getPositions(positions);
             sim->getVelocities(velocities);
             outputFile << N << "\n\n";
-
             for (size_t i = 0; i < numParticles; i++)
             {
                 char element;
-                if (i % 3 == 0)
-                    element = 'O';
-                else
-                    element = 'H';
+                if (i % 3 == 0) element = 'O';
+                else element = 'H';
                 outputFile << element << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
-                        << "\t\t\t" << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] \
-                   << " " << forces[i * 3] << " " << forces[i * 3 + 1] << " " << forces[i * 3 + 2] << std::endl;
+                           << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] << std::endl;
             }
         }
 
 
     }
-    // Close the file
+    
     outputFile.close();
 
     return 0;
@@ -266,7 +246,7 @@ int main(int argc, char** argv){
     }
     else if (backend == 1)
     {
-        return cuda_main(std::cbrt(n)); // TODO: what is dim?
+        return cuda_main(std::cbrt(n));
     }
     else
     {
