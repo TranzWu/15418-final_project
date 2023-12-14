@@ -1,22 +1,38 @@
-#include "particle.h"
 #ifndef MD_CUDA_H
 #define MD_CUDA_H
 
-void calculateForceAndEnergyCuda();
+class CudaSim {
 
-void updateVelocityCuda();
+private:
+    size_t numberOfParticles;
 
-void updatePositionCuda();
+    float boxSize;
 
-void calculateKineticCuda();
+    float dudr;
+    float r_cut;
+    float u_cut;
+    float delta;
 
-void initializeCuda(size_t numberOfParticles_in, float boxSize, double dudr,
-                    double r_cut, double u_cut, double delta, float* init_positions);
+    float* forces;
+    float* positions;
+    float* velocities;
 
-void getPositions(float *out);
+    float* kinetic;
+    float* potential;
 
-void getKinetic(double *out);
+public:
 
-void getPotential(double *out);
+    CudaSim(size_t numberOfParticles_in, float boxSize, float dudr,
+            float r_cut, float u_cut, float delta, float* init_positions);
+    ~CudaSim();
+    
+    void advance();
+
+    void getPositions(float *out);
+    void getVelocities(float *out);
+    void getForces(float *out);
+    void getKinetic(float *out);
+    void getPotential(float *out);
+};
 
 #endif // MD_H

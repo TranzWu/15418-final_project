@@ -30,8 +30,6 @@ int sequential_main()
     std::vector<Particle> particles;
 
     //initialize particle positions
-
-
     int row = std::cbrt(n);
     int count = 0;
     for (int m = 0; m < row; m++){
@@ -68,9 +66,6 @@ int sequential_main()
                 std::vector<double> v_h2 = {0, 0, 0};
                 auto a3 = Particle((m * row + l * row + q) * 3 + 2, 'H', p_h2, v_h2);
                 particles.push_back(a3);
-
-
-
             }
         }
     }
@@ -133,6 +128,7 @@ int cuda_main(size_t dim)
     // Initialize positions and velocities
     float positions[dim * dim * dim * 3 * 3]; // TODO: Replace 3's with CONSTANTS
     float velocities[dim * dim * dim * 3 * 3];
+    float forces[dim * dim * dim * 3 * 3];
 
     for (int m = 0; m < dim; m++){
         for (int l = 0; l < dim; l++){
@@ -142,7 +138,7 @@ int cuda_main(size_t dim)
                 pos[0] = m * 2;
                 pos[1] = l * 2;
                 pos[2] = q * 2;
-                float *vel = &velocities[m * dim * dim * 3 + l * dim * 3 + q * 3];
+                float *vel = &velocities[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3];
                 vel[0] = 0;
                 vel[1] = 0;
                 vel[2] = 0;
@@ -152,7 +148,7 @@ int cuda_main(size_t dim)
                 pos[0] = m * 2 + 0.5;
                 pos[1] = l * 2;
                 pos[2] = q * 2;
-                vel = &velocities[m * dim * dim * 3 + l * dim * 3 + q * 3 + 3];
+                vel = &velocities[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 3];
                 vel[0] = 0;
                 vel[1] = 0;
                 vel[2] = 0;
@@ -162,7 +158,7 @@ int cuda_main(size_t dim)
                 pos[0] = m * 2;
                 pos[1] = l * 2 + 0.5;
                 pos[2] = q * 2;
-                vel = &velocities[m * dim * dim * 3 + l * dim * 3 + q * 3 + 6];
+                vel = &velocities[m * dim * dim * 3 * 3 + l * dim * 3 * 3 + q * 3 * 3 + 6];
                 vel[0] = 0;
                 vel[1] = 0;
                 vel[2] = 0;
@@ -184,40 +180,47 @@ int cuda_main(size_t dim)
     outputFile << N << "\n\n";
     for (size_t i = 0; i < numParticles; i++)
     {
+        char element;
+        if (i % 3 == 0)
+            element = 'O';
+        else
+            element = 'H';
         // TODO: p.element
-        outputFile << "p.element " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
-                   << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2]  << std::endl;
+        outputFile << element << " " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
+                   << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] << std::endl;
     }
 
     // Initialize CUDA
-    initializeCuda(numParticles, L, dudr, r_cut, u_cut, delta, positions);
+    CudaSim* sim = new CudaSim(numParticles, L, dudr, r_cut, u_cut, delta, positions);
 
     // for each step, output text to the file
     for (int t = 0; t < totalSteps; t++){
         // do velocity verlet
-        updateVelocityCuda();
-        updatePositionCuda();
-        calculateForceAndEnergyCuda();
-        updateVelocityCuda();
-        calculateKineticCuda();
+        sim->advance();
 
-        double kinetic, potential;
-        getKinetic(&kinetic);
-        getPotential(&potential);
-        getPositions(positions);
+        float kinetic, potential;
+        sim->getKinetic(&kinetic);
+        sim->getPotential(&potential);
 
         std::cout << kinetic << " " << potential << " " << kinetic + potential << std::endl;
-        //std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
+        // std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
 
         //write particle positions to the output files
         if (t % 20 == 0){
+            sim->getPositions(positions);
+            sim->getVelocities(velocities);
             outputFile << N << "\n\n";
 
             for (size_t i = 0; i < numParticles; i++)
             {
-                // TODO: p.element
-                outputFile << "p.element " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
-                        << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2]  << std::endl;
+                char element;
+                if (i % 3 == 0)
+                    element = 'O';
+                else
+                    element = 'H';
+                outputFile << element << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
+                        << "\t\t\t" << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] \
+                   << " " << forces[i * 3] << " " << forces[i * 3 + 1] << " " << forces[i * 3 + 2] << std::endl;
             }
         }
 
@@ -263,7 +266,7 @@ int main(int argc, char** argv){
     }
     else if (backend == 1)
     {
-        return cuda_main(10); // TODO: what is dim?
+        return cuda_main(std::cbrt(n)); // TODO: what is dim?
     }
     else
     {
