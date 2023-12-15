@@ -16,7 +16,8 @@ public:
     int particleID;
     char element;
     std::vector<double> position;
-    std::vector<double> velocity;    
+    std::vector<double> velocity;
+    std::vector<int> neighborList;    
     
     int getParticleID();
 

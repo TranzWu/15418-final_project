@@ -18,12 +18,13 @@ all: $(TARGET)
 
 # Compile source files to object files
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@ -fopenmp
 
 # Link object files to create the executable
 $(TARGET): $(OBJS)
-	$(CXX) $(OBJS) -o $(TARGET) $(LDFLAGS) $(CPPFLAGS) 
-# -Xpreprocessor -fopenmp
+	$(CXX) $(OBJS) -o $(TARGET) -Xpreprocessor -fopenmp $(LDFLAGS) $(CPPFLAGS) -lomp
+# -Xpreprocessor -fopenmp -03
+# -Xpreprocessor -fopenmp $(LDFLAGS) $(CPPFLAGS) -lomp
 
 # Clean up intermediate and executable files
 clean:

@@ -10,11 +10,11 @@
 // #include <omp.h>
 
 
-double L = 12;
-int n = 5 * 5 * 5;
+double L = 11.5;
+int n = 6 * 6 * 6;
 int N = n * 3;
 double delta = 0.002;
-double t = 0.2;
+double t = 0.1;
 int totalSteps = t / delta;
 
 //define cutoff radius to save computational time
@@ -26,8 +26,6 @@ double dudr = -(48/std::pow(r_cut, 13) - 24/std::pow(r_cut, 7));
 
 
 int main(){
-
-
 
     //add particles to a vector
     std::vector<Particle> particles;
@@ -98,6 +96,7 @@ int main(){
     std::vector<std::vector<double>> force(N, std::vector<double>(3, 0));
     double potEng = 0;
     double kinEng = 0;
+    buildNeighborList(particles);
     calculateForceAndEnergy(particles, force, potEng);
 
 
@@ -105,13 +104,14 @@ int main(){
     auto start_time = std::chrono::high_resolution_clock::now();
     for (int t = 0; t < totalSteps; t++){
         // do velocity verlet
+        if (t % 50 == 0) buildNeighborList(particles);
         updateVelocity(particles, force);
         updatePosition(particles);
         calculateForceAndEnergy(particles, force, potEng);
         updateVelocity(particles, force);
         calculateKenetic(particles, kinEng);
 
-        //std::cout << kinEng << " " << potEng << " " << kinEng + potEng << std::endl;
+        std::cout << kinEng << " " << potEng << " " << kinEng + potEng << std::endl;
         //std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
 
         //write particle positions to the output files

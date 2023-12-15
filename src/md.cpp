@@ -52,35 +52,90 @@ void updateBondAndAngle(std::vector<Particle> &particles, std::vector<std::vecto
     }
 }
 
-void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::vector<double>> &force, double &potEng){
 
-    potEng = 0;
-    initializeForce(force);
-    #pragma omp parallel for
+void buildNeighborList(std::vector<Particle> &particles){
+    double radius = 3;
+
     for (int i = 0; i < N; i++){
+        particles[i].neighborList.clear(); //first clean the neighbot list
         for (int j = i + 1; j < N; j++){
             if ( !((i % 3 == 0) && (j - i == 1) || (i % 3 == 0) && (j - i == 2) )){
                 double dist = calculateDistance(particles[i], particles[j]);
-                //calculate potential energy for each pair
-                if (dist < r_cut){
-                    double u_actual = 4 * (1/std::pow(dist, 12) - 1/std::pow(dist, 6));
-                    potEng += u_actual - u_cut - (dist - r_cut) * dudr;
-                    //std::cout << dist << std::endl;
-                    for (int k = 0; k < 3; k++){
-                        double r = particles[i].position[k] - particles[j].position[k];
-                        if (r < -L/2) r += L;
-                        if (r > L/2) r -= L;
-                        
-                        double f = r * (48/std::pow(dist, 14) - 24/std::pow(dist, 8) + dudr/dist);
-                        //std::cout << "f is " << f << std::endl;
-                        force[i][k] += f;
-                        force[j][k] -= f;
-                    }
+                if (dist < radius){
+                    particles[i].neighborList.push_back(j);
                 }
             }
 
         }
     }
+
+}
+
+
+// void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::vector<double>> &force, double &potEng){
+
+//     potEng = 0;
+//     initializeForce(force);
+//     #pragma omp parallel for
+//     for (int i = 0; i < N; i++){
+//         for (int j = i + 1; j < N; j++){
+//             if ( !((i % 3 == 0) && (j - i == 1) || (i % 3 == 0) && (j - i == 2) )){
+//                 double dist = calculateDistance(particles[i], particles[j]);
+//                 //calculate potential energy for each pair
+//                 if (dist < r_cut){
+//                     double u_actual = 4 * (1/std::pow(dist, 12) - 1/std::pow(dist, 6));
+//                     potEng += u_actual - u_cut - (dist - r_cut) * dudr;
+//                     //std::cout << dist << std::endl;
+//                     for (int k = 0; k < 3; k++){
+//                         double r = particles[i].position[k] - particles[j].position[k];
+//                         if (r < -L/2) r += L;
+//                         if (r > L/2) r -= L;
+                        
+//                         double f = r * (48/std::pow(dist, 14) - 24/std::pow(dist, 8) + dudr/dist);
+//                         //std::cout << "f is " << f << std::endl;
+//                         force[i][k] += f;
+//                         force[j][k] -= f;
+//                     }
+//                 }
+//             }
+
+//         }
+//     }
+
+
+//     updateBondAndAngle(particles, force, potEng);
+
+// }
+
+void calculateForceAndEnergy(std::vector<Particle> &particles, std::vector<std::vector<double>> &force, double &potEng){
+
+    potEng = 0;
+    initializeForce(force);
+ 
+    #pragma omp parallel for
+    for (int i = 0; i < N; i++){
+        for (int j: particles[i].neighborList){
+            double dist = calculateDistance(particles[i], particles[j]);
+            //if (dist < r_cut){
+                double u_actual = 4 * (1/std::pow(dist, 12) - 1/std::pow(dist, 6));
+                potEng += u_actual - u_cut - (dist - r_cut) * dudr;
+                //std::cout << dist << std::endl;
+                for (int k = 0; k < 3; k++){
+                    double r = particles[i].position[k] - particles[j].position[k];
+                    if (r < -L/2) r += L;
+                    if (r > L/2) r -= L;
+                    
+                    double f = r * (48/std::pow(dist, 14) - 24/std::pow(dist, 8) + dudr/dist);
+                    //std::cout << "f is " << f << std::endl;
+                    force[i][k] += f;
+                    force[j][k] -= f;
+                }
+            //}
+        }
+
+
+    }
+
 
     updateBondAndAngle(particles, force, potEng);
 
