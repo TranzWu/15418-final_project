@@ -1,4 +1,3 @@
-#include "md.h"
 #include "seq_sim.h"
 
 #include <cmath>

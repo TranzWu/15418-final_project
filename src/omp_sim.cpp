@@ -1,4 +1,3 @@
-#include "md.h"
 #include "omp_sim.h"
 
 #include <cmath>
