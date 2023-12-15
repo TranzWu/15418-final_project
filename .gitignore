@@ -1,0 +1,5 @@
+*.o
+src/output.xyz
+src/cuda_output.xyz
+src/water
+settings.json
