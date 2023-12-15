@@ -17,5 +17,7 @@ void updatePosition(std::vector<Particle> &particles);
 
 void calculateKenetic(std::vector<Particle> &particles, double &kinEng);
 
+void buildNeighborList(std::vector<Particle> &particles);
+
 
 #endif // MD_H

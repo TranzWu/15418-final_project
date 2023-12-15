@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cmath>
 #include <utility>
+#include <chrono>
 #include <getopt.h>
 #include <cstring>
 
@@ -15,11 +16,14 @@
 // 0 for sequential, 1 for CUDA, 2 for ISPC
 int backend = 0;
 
-double L = 12;
-int n = 5 * 5 * 5;
+// #include <omp.h>
+
+
+double L = 11.5;
+int n = 6 * 6 * 6;
 int N = n * 3;
 double delta = 0.002;
-double t = 100;
+double t = 0.1;
 int totalSteps = t / delta;
 
 //define cutoff radius to save computational time
@@ -94,12 +98,15 @@ int sequential_main()
     std::vector<std::vector<double>> force(N, std::vector<double>(3, 0));
     double potEng = 0;
     double kinEng = 0;
+    buildNeighborList(particles);
     calculateForceAndEnergy(particles, force, potEng);
 
 
     // for each step, output text to the file
+    auto start_time = std::chrono::high_resolution_clock::now();
     for (int t = 0; t < totalSteps; t++){
         // do velocity verlet
+        if (t % 50 == 0) buildNeighborList(particles);
         updateVelocity(particles, force);
         updatePosition(particles);
         calculateForceAndEnergy(particles, force, potEng);
@@ -118,6 +125,11 @@ int sequential_main()
 
 
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "Time taken: " << duration.count() << " seconds" << std::endl;
+
+
     // Close the file
     outputFile.close();
 
