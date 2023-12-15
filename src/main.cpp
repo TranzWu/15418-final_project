@@ -13,17 +13,17 @@
 #include <chrono>
 #include <getopt.h>
 #include <cstring>
+#include <pthread.h>
+#include <sstream>
 
 static int debug_flag;
 
 // 0 for sequential, 1 for CUDA, 2 for ISPC
 int backend = 0;
 
-// #include <omp.h>
-
-
 double L = 11.5;
-int n = 6 * 6 * 6;
+int d = 6;
+int n = d * d * d;
 int N = n * 3;
 double delta = 0.002;
 double t = 100;
@@ -32,15 +32,48 @@ int totalSteps = t / delta;
 //define cutoff radius to save computational time
 double r_cut = 2.5;
 double u_cut = 4 * (1/std::pow(r_cut, 12) - 1/std::pow(r_cut, 6));
-//dudr = -(48/r_cut**13 - 24/r_cut**7)
 double dudr = -(48/std::pow(r_cut, 13) - 24/std::pow(r_cut, 7));
+
+float th_param[6 * 6 * 6 * 3 * 3 * 2];
+
+bool outputting = false;
+size_t timestep = 0;
+
+void *write_output(void* ptr)
+{
+    float* positions = (float *)th_param;
+    float* velocities = &positions[N];
+
+    std::stringstream file_title;
+    file_title << "data/output" << timestep << ".xyz";
+
+    // Open output file
+    std::ofstream outputFile(file_title.str());
+    timestep += 1;
+    if (!outputFile.is_open()) {
+        std::cerr << "Error opening the file!" << std::endl;
+        return nullptr;
+    }
+
+    outputFile << N << "\n\n";
+    for (size_t i = 0; i < N; i++)
+    {
+        char element;
+        if (i % 3 == 0) element = 'O';
+        else element = 'H';
+        outputFile << element << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
+                    << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] << std::endl;
+    }
+
+    return nullptr;
+}
 
 int sim_main(size_t dim, int backend)
 {
     // Initialize positions and velocities
-    float positions[dim * dim * dim * 3 * 3];
-    float velocities[dim * dim * dim * 3 * 3];
-    memset(velocities, 0, dim * dim * dim * 3 * sizeof(float));
+    float* positions = &th_param[0];
+    float* velocities = &th_param[dim * dim * dim * 3 * 3];
+    memset(velocities, 0, sizeof(velocities));
     for (int m = 0; m < dim; m++){
         for (int l = 0; l < dim; l++){
             for (int q = 0; q < dim; q++){
@@ -65,15 +98,9 @@ int sim_main(size_t dim, int backend)
         }
     }
 
-    // Open output file
-    std::ofstream outputFile("output.xyz");
-    if (!outputFile.is_open()) {
-        std::cerr << "Error opening the file!" << std::endl;
-        return 1;
-    }
-
     // Write initial positions out to file
     size_t numParticles = dim * dim * dim * 3;
+    std::ofstream outputFile("outputfile.xyz");
     outputFile << N << "\n\n";
     for (size_t i = 0; i < numParticles; i++)
     {
@@ -85,6 +112,7 @@ int sim_main(size_t dim, int backend)
         outputFile << element << " " << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
                    << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] << std::endl;
     }
+    outputFile.close();
 
     // Initialize CUDA simulator
     Sim* sim;
@@ -108,22 +136,14 @@ int sim_main(size_t dim, int backend)
 
         // Write new positions and velocities to output file
         if (t % 20 == 0){
+            pthread_t output_thread;
             sim->getPositions(positions);
             sim->getVelocities(velocities);
-            outputFile << N << "\n\n";
-            for (size_t i = 0; i < numParticles; i++)
-            {
-                char element;
-                if (i % 3 == 0) element = 'O';
-                else element = 'H';
-                outputFile << element << " " << positions[i * 3] << " " << positions[i * 3 + 1] << " " << positions[i * 3 + 2] \
-                           << " " << velocities[i * 3] << " " << velocities[i * 3 + 1] << " " << velocities[i * 3 + 2] << std::endl;
-            }
+
+            pthread_create(&output_thread, NULL, write_output, nullptr);
+            pthread_detach(output_thread);
         }
     }
-
-    outputFile.close();
-
     return 0;
 }
 
@@ -160,7 +180,7 @@ int main(int argc, char** argv){
     }
 
     float startTime = CycleTimer::currentSeconds();
-    int res = sim_main(std::cbrt(n), backend);
+    int res = sim_main(d, backend);
     float endTime = CycleTimer::currentSeconds();
 
     printf("Runtime = %f\n", endTime - startTime);

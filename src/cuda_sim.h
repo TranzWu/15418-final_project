@@ -7,6 +7,7 @@ class CudaSim : public Sim {
 
 private:
     size_t numberOfParticles;
+    size_t timesteps;
 
     float boxSize;
 
@@ -21,6 +22,9 @@ private:
 
     float* kinetic;
     float* potential;
+
+    short* neighbors;
+    short* counts;
 
 public:
     CudaSim(size_t numberOfParticles_in, float boxSize, float dudr,

@@ -1,8 +1,11 @@
 #include <cuda.h>
 #include <iostream>
 #include <cuda_runtime.h>
+#include <thrust/scan.h>
+#include <thrust/device_ptr.h>
 
 #include "cuda_sim.h"
+#include "cycleTimer.h"
 
 struct GlobalConstants {
     size_t numberOfParticles;
@@ -20,6 +23,9 @@ struct GlobalConstants {
 
     float* kinetic;
     float* potential;
+
+    short* neighbors;
+    short* counts;
 };
 __constant__ GlobalConstants params;
 
@@ -44,37 +50,90 @@ __device__ float calculateDistance(size_t i, size_t j)
 
 /* Kernels */
 
+__global__ void markNeighbors()
+{
+    int numberOfParticles = params.numberOfParticles;
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    float r_cut = params.r_cut;
+    short* neighbors = params.neighbors;
+    int i = index / numberOfParticles;
+    int j = index % numberOfParticles;
+
+    float dist = calculateDistance(i, j);
+
+    if (dist < r_cut * 2)
+        neighbors[i * numberOfParticles + j] = 1;
+    else
+        neighbors[i * numberOfParticles + j] = 0;
+}
+
+__global__ void getNeighborCounts()
+{
+    short* neighbors = params.neighbors;
+    short* counts = params.counts;
+    int numberOfParticles = params.numberOfParticles;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i >= numberOfParticles) return;
+
+    counts[i] = neighbors[i * numberOfParticles + numberOfParticles - 1];
+}
+
+__global__ void reduceNeighbors()
+{
+    int numberOfParticles = params.numberOfParticles;
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    short* neighbors = params.neighbors;
+    int i = index / numberOfParticles;
+    int j = index % numberOfParticles;
+
+    if (j == numberOfParticles - 1)
+        return;
+
+    if (neighbors[i * numberOfParticles + j] == neighbors[i * numberOfParticles + j + 1] + 1)
+    {
+        index = neighbors[i * numberOfParticles + j];
+        neighbors[i * numberOfParticles + index] = j;
+    }
+}
+
 __global__ void calculateForceKernel()
 {
     int numberOfParticles = params.numberOfParticles;
     float boxSize = params.boxSize;
     float dudr = params.dudr;
     float r_cut = params.r_cut;
-    float u_cut = params.u_cut;
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int i = index % numberOfParticles;
-    int j = index / numberOfParticles;
+    int i = index / (numberOfParticles / 5);
+    int h = index % (numberOfParticles / 5);
 
-    if (i >= numberOfParticles || j >= numberOfParticles) return;
-    if (j <= i) return;
-    if ((i % 3 == 0) && (j - i == 1) || (i % 3 == 0) && (j - i == 2) ) return;
-
-    float dist = calculateDistance(i, j);
-    if (dist >= r_cut) return;
-
-    float u_actual = 4 * (1/std::pow(dist, 12) - 1/std::pow(dist, 6));
-    atomicAdd(params.potential, u_actual - u_cut - (dist - r_cut) * dudr);
-
-    for (int k = 0; k < 3; k++)
+    while (h < params.counts[i])
     {
-        float r = params.positions[i * 3 + k] - params.positions[j * 3 + k];
-        if (r < -boxSize/2) r += boxSize;
-        if (r > boxSize/2) r -= boxSize;
+        int j = params.neighbors[i * numberOfParticles + h];
 
-        float f = r * (48/pow(dist, 14) - 24/pow(dist, 8) + dudr/dist);
-        atomicAdd(&params.forces[i * 3 + k], f);
-        atomicAdd(&params.forces[j * 3 + k], -1 * f);
+        if (i >= numberOfParticles || j >= numberOfParticles) return;
+        if (j <= i) return;
+        if ((i % 3 == 0) && (j - i == 1) || (i % 3 == 0) && (j - i == 2) ) return;
+
+        float dist = calculateDistance(i, j);
+        if (dist >= r_cut) return;
+
+        float u_actual = 4 * (1/std::pow(dist, 12) - 1/std::pow(dist, 6));
+        // atomicAdd(params.potential, u_actual - u_cut - (dist - r_cut) * dudr);
+
+        for (int k = 0; k < 3; k++)
+        {
+            float r = params.positions[i * 3 + k] - params.positions[j * 3 + k];
+            if (r < -boxSize/2) r += boxSize;
+            if (r > boxSize/2) r -= boxSize;
+
+            float f = r * (48/pow(dist, 14) - 24/pow(dist, 8) + dudr/dist);
+            atomicAdd(&params.forces[i * 3 + k], f);
+            atomicAdd(&params.forces[j * 3 + k], -1 * f);
+        }
+
+        h += numberOfParticles / 5;
     }
 
 }
@@ -206,6 +265,10 @@ CudaSim::CudaSim(size_t numberOfParticles_in, float boxSize_in, float dudr_in,
     cudaMemset(velocities, 0, sizeof(float) * 3 * numberOfParticles);
     cudaMalloc(&forces, sizeof(float) * 3 * numberOfParticles);
     cudaMemset(forces, 0, sizeof(float) * 3 * numberOfParticles);
+    cudaMalloc(&neighbors, sizeof(short) * numberOfParticles * numberOfParticles);
+    cudaMemset(neighbors, 0, sizeof(short) * numberOfParticles * numberOfParticles);
+    cudaMalloc(&counts, sizeof(short) * numberOfParticles);
+    cudaMemset(counts, 0, sizeof(short) * numberOfParticles);
     cudaMalloc(&kinetic, sizeof(float));
     cudaMemset(kinetic, 0, sizeof(float));
     cudaMalloc(&potential, sizeof(float));
@@ -224,6 +287,8 @@ CudaSim::CudaSim(size_t numberOfParticles_in, float boxSize_in, float dudr_in,
     local_params.forces = forces;
     local_params.kinetic = kinetic;
     local_params.potential = potential;
+    local_params.neighbors = neighbors;
+    local_params.counts = counts;
     cudaMemcpyToSymbol(params, &local_params, sizeof(GlobalConstants));
 
     cudaError_t errCode = cudaPeekAtLastError();
@@ -246,6 +311,8 @@ CudaSim::CudaSim(size_t numberOfParticles_in, float boxSize_in, float dudr_in,
         fprintf(stderr, "FORCE1: A CUDA error occured: code=%d, %s, %s\n", errCode, cudaGetErrorName(errCode), cudaGetErrorString(errCode));
         exit(-1);
     }
+
+    timesteps = 0;
 }
 
 CudaSim::~CudaSim()
@@ -253,10 +320,16 @@ CudaSim::~CudaSim()
     cudaFree(positions);
     cudaFree(velocities);
     cudaFree(forces);
+    cudaFree(neighbors);
+    cudaFree(counts);
+    cudaFree(potential);
+    cudaFree(kinetic);
 }
 
 void CudaSim::advance()
 {
+    // size_t startTime;
+    // size_t endTime;
 
     cudaError_t errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {
@@ -267,8 +340,12 @@ void CudaSim::advance()
     int threadsPerBlock = 512;
     int blocks = (numberOfParticles * 3 + threadsPerBlock - 1) / threadsPerBlock;
     cudaMemset(kinetic, 0, sizeof(float));
+    // startTime = CycleTimer::currentTicks();
     calculateKineticKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("Kinetic Kernel took %lu seconds\n", endTime - startTime);
+
 
     errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {
@@ -276,8 +353,11 @@ void CudaSim::advance()
         exit(-1);
     }
 
+    // startTime = CycleTimer::currentTicks();
     updateVelocityKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("Velocity Kernel took %lu seconds\n", endTime - startTime);
 
     errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {
@@ -285,8 +365,11 @@ void CudaSim::advance()
         exit(-1);
     }
 
+    // startTime = CycleTimer::currentTicks();
     updatePositionKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("Position Kernel took %lu seconds\n", endTime - startTime);
 
     errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {
@@ -294,13 +377,39 @@ void CudaSim::advance()
         exit(-1);
     }
 
-    blocks = (numberOfParticles * numberOfParticles + threadsPerBlock - 1) / threadsPerBlock;
+    // Every 50 timesteps, update the neighbors list
+    if (timesteps % 50 == 0)
+    {
+        // Mark neighbors
+        blocks = (numberOfParticles * numberOfParticles + threadsPerBlock - 1) / threadsPerBlock;
+        markNeighbors<<<blocks, threadsPerBlock>>>();
+
+        // Scan
+        thrust::device_ptr<short> th_neighbors = thrust::device_pointer_cast(neighbors);
+        thrust::exclusive_scan(th_neighbors, th_neighbors + (numberOfParticles * numberOfParticles), th_neighbors);
+
+        blocks = (numberOfParticles + threadsPerBlock - 1) / threadsPerBlock;
+        getNeighborCounts<<<blocks, threadsPerBlock>>>();
+
+        // Reduce
+        reduceNeighbors<<<blocks, threadsPerBlock>>>();
+    }
+    timesteps += 1;
+    // startTime = CycleTimer::currentTicks();
+    // printf("Launching %lu threads\n", numberOfParticles * numberOfParticles);
+    blocks = (numberOfParticles * numberOfParticles / 5 + threadsPerBlock - 1) / threadsPerBlock;
     cudaMemset(forces, 0, 3 * numberOfParticles * sizeof(float));
+
     calculateForceKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("CalculateForce Kernel took %lu seconds\n", endTime - startTime);
+    // startTime = CycleTimer::currentTicks();
     blocks = (numberOfParticles * 3 + threadsPerBlock - 1) / threadsPerBlock;
     calculateBondAngleKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("BondAndAngle Kernel took %lu seconds\n", endTime - startTime);
 
     errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {
@@ -308,9 +417,12 @@ void CudaSim::advance()
         exit(-1);
     }
 
+    // startTime = CycleTimer::currentTicks();
     blocks = (numberOfParticles * 3 + threadsPerBlock - 1) / threadsPerBlock;
     updateVelocityKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("Velocity Kernel took %lu seconds\n", endTime - startTime);
 
     errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {
@@ -318,8 +430,11 @@ void CudaSim::advance()
         exit(-1);
     }
 
+    // startTime = CycleTimer::currentTicks();
     calculateKineticKernel<<<blocks, threadsPerBlock>>>();
     cudaDeviceSynchronize();
+    // endTime = CycleTimer::currentTicks();
+    // printf("Velocity Kernel took %lu seconds\n", endTime - startTime);
 
     errCode = cudaPeekAtLastError();
     if (errCode != cudaSuccess) {

@@ -93,8 +93,6 @@ void OmpSim::calculateForceAndEnergy()
     updateBondAndAngle();
 }
 
-
-
 void OmpSim::updateVelocity()
 {
     #pragma omp parallel for

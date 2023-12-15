@@ -1,5 +1,4 @@
 *.o
-src/output.xyz
-src/cuda_output.xyz
+*.xyz
 src/water
 settings.json
