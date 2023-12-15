@@ -31,4 +31,4 @@ $(TARGET): $(OBJS)
 
 # Clean up intermediate and executable files
 clean:
-	rm -f $(OBJS) $(TARGET) cuda_output.xyz
+	rm -f $(OBJS) $(TARGET) cuda_output.xyz output.xyz

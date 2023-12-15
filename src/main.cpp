@@ -2,6 +2,7 @@
 #include "particle.h"
 #include "md.h"
 #include "md_cuda.h"
+#include "cycleTimer.h"
 
 #include <iostream>
 #include <fstream>
@@ -9,6 +10,7 @@
 #include <utility>
 #include <getopt.h>
 #include <cstring>
+
 
 // 0 for sequential, 1 for CUDA, 2 for ISPC
 int backend = 0;
@@ -104,9 +106,6 @@ int sequential_main()
         updateVelocity(particles, force);
         calculateKenetic(particles, kinEng);
 
-        std::cout << kinEng << " " << potEng << " " << kinEng + potEng << std::endl;
-        //std::cout << (double)t/totalSteps * 100 << "%" << std::endl;
-
         //write particle positions to the output files
         if (t % 20 == 0){
             outputFile << N << "\n\n";
@@ -187,7 +186,7 @@ int cuda_main(size_t dim)
         sim->getKinetic(&kinetic);
         sim->getPotential(&potential);
 
-        std::cout << kinetic << " " << potential << " " << kinetic + potential << std::endl;
+        // std::cout << kinetic << " " << potential << " " << kinetic + potential << std::endl;
 
         // Write new positions and velocities to output file
         if (t % 20 == 0){
@@ -206,7 +205,7 @@ int cuda_main(size_t dim)
 
 
     }
-    
+
     outputFile.close();
 
     return 0;
@@ -240,19 +239,25 @@ int main(int argc, char** argv){
         }
     }
 
+
+    float startTime = CycleTimer::currentSeconds();
+    int res;
     if (backend == 0)
     {
-        return sequential_main();
+        res = sequential_main();
     }
     else if (backend == 1)
     {
-        return cuda_main(std::cbrt(n));
+        res = cuda_main(std::cbrt(n));
     }
     else
     {
         printf("ERROR Unimplemented\n");
         return 1;
     }
+    float endTime = CycleTimer::currentSeconds();
 
-    return 1;
+    printf("Runtime = %f\n", endTime - startTime);
+
+    return res;
 }
