@@ -1,6 +1,5 @@
 //main.cpp
 #include "particle.h"
-#include "md.h"
 #include "sim.h"
 #include "seq_sim.h"
 #include "cuda_sim.h"
@@ -27,7 +26,7 @@ double L = 11.5;
 int n = 6 * 6 * 6;
 int N = n * 3;
 double delta = 0.002;
-double t = 0.1;
+double t = 100;
 int totalSteps = t / delta;
 
 //define cutoff radius to save computational time
